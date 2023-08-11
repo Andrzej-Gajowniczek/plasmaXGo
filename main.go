@@ -14,6 +14,10 @@ import (
 //go:embed "charset/frak.64c"
 var data []byte
 
+/*
+//go:embed "other/message.txt"
+var message []byte
+*/
 func byteToByteSliceByBits(b byte, p byte) []byte {
 	bitByByteSlice := make([]byte, 8)
 	for i := 7; i >= 0; i-- {
@@ -70,6 +74,33 @@ type colPair struct {
 	fg termbox.Attribute
 	bg termbox.Attribute
 }
+
+func wrapAndCenterText(text string, maxWidth int) string {
+	var result string
+
+	paragraphs := strings.Split(text, "\n")
+	for _, paragraph := range paragraphs {
+		words := strings.Fields(paragraph)
+		line := ""
+		for _, word := range words {
+			if len(line)+len(word)+1 > maxWidth {
+				padding := (maxWidth - len(line)) / 2
+				result += strings.Repeat(" ", padding) + line + "\n"
+				line = ""
+			}
+			if line != "" {
+				line += " "
+			}
+			line += word
+		}
+
+		padding := (maxWidth - len(line)) / 2
+		result += strings.Repeat(" ", padding) + line + "\n"
+	}
+
+	return result
+}
+
 type shadowScroll struct {
 	info          []byte
 	currenBitmap  [8][8]byte
@@ -220,8 +251,8 @@ func main() {
 			}
 		}
 		sign := message[0]
-		graph := renderChar(byte(sign), 11)
-		baseX, baseY := 30, 20
+		graph := renderChar(byte(sign), 16)
+		baseX, baseY := (console.xmax-8)/2, (console.ymax-8)/2
 		for i, g := range *graph {
 			for x, valueAdd := range g {
 				copyToIndices := baseX + console.xmax*baseY + i*console.xmax + x
