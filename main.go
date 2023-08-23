@@ -11,13 +11,53 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-//go:embed "charset/frak.64c"
+//go:embed "other/message.txt"
+var tekst string
+
+//go:embed "charset/c64_lower.64c"
 var data []byte
 
-/*
-//go:embed "other/message.txt"
-var message []byte
-*/
+type display struct {
+	words          []string
+	linesOfText    []string
+	brokenLines    []string
+	width          int //count of cursors divided by 8
+	height         int //count of cursors divided by 8 since block-graphics set 8x8 char semigraphics a single letter
+	lineBlock      [][]uint8
+	frameBlock     [][]uint8
+	screenBlock    [][]uint8
+	indexY         int
+	contY          int
+	total          int
+	slowDownFactor int
+	shift          int
+}
+
+func (d *display) ifTooLong(s string) []string {
+	l := len(s)
+	var result []string
+	if l > d.width {
+		result = append(result, s[0:(l-3)]+"-")
+		result = append(result, s[(l-3):])
+
+	} else {
+		result = append(result, s)
+	}
+	return result
+}
+func (d *display) center() {
+	for _, y := range d.brokenLines {
+		l := len(y)
+		prefix := ""
+		for i := 0; i < (d.width-l)/2; i++ {
+			prefix += " "
+		}
+		c := prefix + y + prefix
+		d.linesOfText = append(d.linesOfText, c)
+	}
+
+}
+
 func byteToByteSliceByBits(b byte, p byte) []byte {
 	bitByByteSlice := make([]byte, 8)
 	for i := 7; i >= 0; i-- {
@@ -27,14 +67,16 @@ func byteToByteSliceByBits(b byte, p byte) []byte {
 	return bitByByteSlice
 }
 
-// renderChar func input Ascii capital letter byte code and returns 8x8 font consist of 0 and 1 - 8 strings by 8x Zeros or Ones
+// renderChar func input Ascii letter byte code and returns 8x8 font consist of 0 and 1 - 8 strings by 8x Zeros or Ones
 func renderChar(b byte, padding byte) *[][]byte {
 
 	var items = []rune{
-		'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
-		'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', '~', ']', '|', '\\', ' ', '!', '"', '#', '$', '%', '&',
+		'@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+		't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '£', ']', '↑', '←', ' ', '!', '"', '#', '$', '%', '&',
 		'\'', '(', ')', '*', '+', ',', '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-		':', ';', '<', '=', '>', '?',
+		':', ';', '<', '=', '>', '?', '_',
+		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+		'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
 	}
 
 	//this func maps code of letters with indices of pixels to read data from, regarding shape of certain semigraphics image of the letter
@@ -58,9 +100,6 @@ func renderChar(b byte, padding byte) *[][]byte {
 		x := charset[z]
 		q := byteToByteSliceByBits(x, padding)
 		copy(rendered[y], q)
-
-		//struna := fmt.Sprintf("%08b", x)
-		//rendered = append(rendered, struna)
 	}
 	return &rendered //return address of semigraphics "Big" image 8x8 cursors size.
 }
@@ -75,61 +114,22 @@ type colPair struct {
 	bg termbox.Attribute
 }
 
-func wrapAndCenterText(text string, maxWidth int) string {
-	var result string
-
-	paragraphs := strings.Split(text, "\n")
-	for _, paragraph := range paragraphs {
-		words := strings.Fields(paragraph)
-		line := ""
-		for _, word := range words {
-			if len(line)+len(word)+1 > maxWidth {
-				padding := (maxWidth - len(line)) / 2
-				result += strings.Repeat(" ", padding) + line + "\n"
-				line = ""
-			}
-			if line != "" {
-				line += " "
-			}
-			line += word
-		}
-
-		padding := (maxWidth - len(line)) / 2
-		result += strings.Repeat(" ", padding) + line + "\n"
-	}
-
-	return result
-}
-
-type shadowScroll struct {
-	info          []byte
-	currenBitmap  [8][8]byte
-	messageShadow [][8]byte
-}
-
-func (sh *shadowScroll) loadInfo(s string) {
-	s = strings.ToUpper(s)
-	for _, c := range s {
-		sh.info = append(sh.info, byte(c))
-	}
-}
 func main() {
 
-	message := "ala ma kota feliksa który jest bardzo przytulaśnym kotem."
-	message = strings.ToUpper(message)
-
-	//	var sc shadowScroll
-	//	sc.info := append(sc.info, []byte(message...))
-
-	//os.Exit(1)
+	//plasma math preparation part
 	err := termbox.Init()
 	if err != nil {
 		fmt.Printf("panic: %v\n", err)
 	}
 	var console gTerm
 	console.xmax, console.ymax = termbox.Size()
-	defer termbox.Close()
+	if console.xmax < 60 || (console.ymax) < 20 {
+		termbox.Close()
+		fmt.Printf("console size too smal: %dx%d\nPlease enlarge the console size to at least 60x24\n", console.xmax, console.ymax)
+		os.Exit(0)
 
+	}
+	defer termbox.Close()
 	asciiChars := []rune{
 		'\u2588', // Full block
 		'\u2593', // Dark shade
@@ -142,7 +142,8 @@ func main() {
 	// termometr is a slice of termbox.Cell which represents foreground background and character for certain color gradient
 	var termometr []termbox.Cell
 	// spectrum is a bunch of foreground and backround colours to feed the termometr slice
-	spectrum := []colPair{{1, 2}, {2, 10}, {10, 12}, {12, 11}, {11, 3}, {3, 7}, {7, 13},
+	spectrum := []colPair{
+		{1, 2}, {2, 10}, {10, 12}, {12, 11}, {11, 3}, {3, 7}, {7, 13},
 		{13, 14}, {14, 6}, {6, 1},
 		{1, 2}, {2, 10}, {10, 16}, {16, 10}, {10, 2}, {2, 1},
 		{1, 4}, {4, 12}, {12, 16}, {16, 12}, {12, 4}, {4, 1},
@@ -179,7 +180,6 @@ func main() {
 		valueCos := math.Cos(i)*8 - 4
 		sinTab[index] = valueSin
 		cosTab[index] = valueCos
-		////	fmt.Print(index, " ")
 		index++
 	}
 
@@ -219,6 +219,81 @@ func main() {
 	var y2_step uint8 = 0xff
 	var y2speed uint8 = 0xfe
 
+	//text preparation part
+	var screen display
+	screen.contY = 0
+	screen.indexY = 0
+	screen.total = 0
+	screen.slowDownFactor = 2
+
+	//screen.width, screen.height = termbox.Size()
+	screen.width = console.xmax / 8
+	screen.height = console.ymax / 8
+	screen.shift = (console.xmax - (screen.width * 8)) / 2
+	screen.words = strings.Fields(tekst)
+	var blanc string
+	for times := 0; times < screen.width; times++ {
+		blanc += " "
+	}
+
+	for _, v := range screen.words {
+		lista := screen.ifTooLong(v)
+		for _, brokenWords := range lista {
+			screen.brokenLines = append(screen.brokenLines, brokenWords)
+			if (strings.Contains(brokenWords, ".")) || (strings.Contains(brokenWords, "!")) {
+				screen.brokenLines = append(screen.brokenLines, blanc, blanc)
+			}
+		}
+	}
+
+	screen.lineBlock = make([][]uint8, 8) // Create an outer slice with a length of 8
+	for i := 0; i < 8; i++ {
+		screen.lineBlock[i] = make([]uint8, console.xmax+48) // Create inner slices with a length of 8
+	}
+
+	screen.screenBlock = make([][]uint8, screen.height*8)
+	for i := 0; i < screen.height*8; i++ {
+		screen.screenBlock[i] = make([]uint8, screen.width*8)
+	}
+	screen.center()
+	//termbox.Close()
+	for _, linia := range screen.linesOfText {
+		for p, chr := range linia { //p wywaliłem
+
+			octopus := renderChar(uint8(chr), 16) //zamieniony byte na uint8
+			for i, q := range *octopus {
+				for ii, value := range q {
+					//fmt.Printf("p: %v\ti:%v\tii:%v\tii+8*p:%v\n", p, i, ii, (ii + 8*p))
+					screen.lineBlock[i][(ii + 8*p)] = value
+				}
+			}
+		}
+
+		for i := 0; i < len(screen.lineBlock); i++ {
+			row := make([]uint8, len(screen.lineBlock[i]))
+			for j := 0; j < len(screen.lineBlock[i]); j++ {
+				row[j] = screen.lineBlock[i][j]
+			}
+			screen.screenBlock = append(screen.screenBlock, row)
+		}
+
+		for i := range screen.lineBlock {
+			for j := range screen.lineBlock[i] {
+				screen.lineBlock[i][j] = 0
+			}
+		}
+	}
+
+	//os.Exit(123)
+	screen.frameBlock = make([][]uint8, console.ymax)
+	for y := 0; y < console.ymax; y++ {
+		screen.frameBlock[y] = make([]uint8, screen.width*8)
+	}
+
+	for screen.total, _ = range screen.screenBlock {
+	} //counting total lines of block semigraphics
+	//end of text preparation
+
 	go func() {
 	label:
 		ev := termbox.PollEvent()
@@ -226,6 +301,7 @@ func main() {
 			goto label
 		}
 		termbox.Close()
+
 		os.Exit(0)
 	}()
 	indices := make([]uint8, (console.xmax * console.ymax), (console.xmax * console.ymax))
@@ -247,19 +323,30 @@ func main() {
 				index = index + sinTab[sinX2index] + cosTab[cosY2index]
 				uindex := uint8(index)
 				indices[y*console.xmax+x] = uindex
-
 			}
 		}
-		sign := message[0]
-		graph := renderChar(byte(sign), 16)
-		baseX, baseY := (console.xmax-8)/2, (console.ymax-8)/2
-		for i, g := range *graph {
-			for x, valueAdd := range g {
-				copyToIndices := baseX + console.xmax*baseY + i*console.xmax + x
-				value := indices[copyToIndices] + valueAdd
-				indices[copyToIndices] = uint8(value)
-			}
 
+		screen.contY++
+		if screen.contY/screen.slowDownFactor > screen.total {
+			screen.contY = 0
+		}
+		screen.indexY = screen.contY / screen.slowDownFactor
+		for y := 0; y < console.ymax; y++ {
+
+			copy(screen.frameBlock[y], screen.screenBlock[screen.indexY])
+			screen.indexY++
+			if screen.indexY > screen.total {
+				screen.indexY = 0
+			}
+		}
+
+		for y, linia := range screen.frameBlock {
+			for x, wartosc := range linia {
+				pobierz := indices[y*console.xmax+x+screen.shift]
+				wartosc = wartosc + pobierz
+				indices[y*console.xmax+x+screen.shift] = wartosc
+
+			}
 		}
 		for y := 0; y < console.ymax; y++ {
 			for x := 0; x < console.xmax; x++ {
@@ -275,12 +362,16 @@ func main() {
 		x2start = x2start + x2speed
 		y2start = y2start + y2speed
 
-		termbox.Flush()
+		termbox.Flush() //make all changes to the view
+
+		// below is simple try to compensate runtime in case of waiting similar time to synchronize vertical rtrace
+		// sure it is not possible without hardware access but I do all my best to make animation smoother
 		duration := time.Since(start)
 		ms := duration.Microseconds()
-		rs := time.Duration(33333-ms) * time.Microsecond
-		time.Sleep(rs)
-
+		if ms < 33330 {
+			rs := time.Duration(33333-ms) * time.Microsecond
+			time.Sleep(rs) //waiting calculated amount of time to continue animation loop
+		}
 		x0start++
 	}
 

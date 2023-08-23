@@ -1,4 +1,6 @@
 github.com/mattn/go-runewidth v0.0.9 h1:Lm995f3rfxdpd6TSmuVCHVb/QhupuXlYr8sCI/QdE+0=
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
+github.com/nlp-compromise/nlp-syllables v0.0.0-20160912124603-8cc0b5546efa h1:BRYpaPSq/CmU6NRVm93ZdFWdw5Re9pFwa+BcoJd6E7w=
+github.com/nlp-compromise/nlp-syllables v0.0.0-20160912124603-8cc0b5546efa/go.mod h1:JkqwmxGSuaBV9EiVIT/0xtH0PzlUg9iCnrjl52yJv64=
 github.com/nsf/termbox-go v1.1.1 h1:nksUPLCb73Q++DwbYUBEglYBRPZyoXJdrj5L+TkjyZY=
 github.com/nsf/termbox-go v1.1.1/go.mod h1:T0cTdVuOwf7pHQNtfhnEbzHbcNyCEcVU4YPpouCbVxo=
